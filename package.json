@@ -1,0 +1,26 @@
+{
+  "name": "aa_pipeline",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "cdk synth --app 'ts-node src/app.ts' --path-metadata false --asset-metadata false --version-reporting false"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@aws-cdk/aws-codecommit": "^1.26.0",
+    "@aws-cdk/aws-codepipeline": "^1.26.0",
+    "@aws-cdk/aws-codepipeline-actions": "^1.26.0",
+    "@aws-cdk/aws-events": "^1.26.0",
+    "@aws-cdk/aws-iam": "^1.26.0",
+    "@aws-cdk/aws-kms": "^1.26.0",
+    "@aws-cdk/aws-lambda": "^1.26.0",
+    "@aws-cdk/aws-lambda-destinations": "^1.26.0",
+    "@aws-cdk/aws-s3": "^1.26.0",
+    "@aws-cdk/core": "^1.26.0",
+    "ts-node": "^8.6.2",
+    "typescript": "^3.7.4"
+  }
+}
