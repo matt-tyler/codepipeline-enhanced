@@ -1,5 +1,5 @@
 {
-  "name": "aa_pipeline",
+  "name": "codepipeline-enhanced",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -7,8 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "cdk synth --app 'ts-node src/app.ts' --path-metadata false --asset-metadata false --version-reporting false"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "matt.tyler@mechanicalrock.io",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@aws-cdk/aws-codecommit": "^1.26.0",
     "@aws-cdk/aws-codepipeline": "^1.26.0",
@@ -19,8 +19,19 @@
     "@aws-cdk/aws-lambda": "^1.26.0",
     "@aws-cdk/aws-lambda-destinations": "^1.26.0",
     "@aws-cdk/aws-s3": "^1.26.0",
+    "@aws-cdk/aws-sam": "^1.26.0",
+    "@aws-cdk/aws-stepfunctions": "^1.26.0",
+    "@aws-cdk/aws-stepfunctions-tasks": "^1.26.0",
     "@aws-cdk/core": "^1.26.0",
+    "@babel/cli": "^7.4.3",
+    "@babel/core": "^7.6.3",
+    "@babel/plugin-proposal-class-properties": "^7.5.5",
+    "@babel/preset-env": "^7.6.0",
+    "@babel/preset-typescript": "^7.7.2",
+    "babel-loader": "^8.0.6",
     "ts-node": "^8.6.2",
-    "typescript": "^3.7.4"
+    "typescript": "^3.7.4",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.11"
   }
 }

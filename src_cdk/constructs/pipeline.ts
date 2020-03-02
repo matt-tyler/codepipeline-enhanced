@@ -1,7 +1,6 @@
 import * as cdk from "@aws-cdk/core";
 import * as cp from "@aws-cdk/aws-codepipeline";
 import * as iam from "@aws-cdk/aws-iam";
-import * as events from "@aws-cdk/aws-events";
 
 import { ArtifactBucket } from "./artifactBucket"
 import { ResultFunction } from "./resultFunction";
@@ -74,7 +73,10 @@ export class Pipeline extends cdk.Construct {
                 ]
             }));
 
+        const name = "";
+
         const pl = new cp.CfnPipeline(this, "Resource", {
+            name,
             roleArn: role.roleArn,
             artifactStore: {
                 type: "S3",
