@@ -3,7 +3,6 @@ import * as fs from "fs";
 import * as path from "path";
 import * as yaml from "js-yaml";
 
-
 const dir = "./.dist";
 
 if (!fs.existsSync(dir)){
@@ -11,25 +10,34 @@ if (!fs.existsSync(dir)){
 }
 
 import PipelineStack from "./stacks/pipeline";
+import SourceActionStack from "./stacks/source";
 
 const app = new cdk.App();
 
+new SourceActionStack(app, "source");
+
 for (let i = 2; i < 4; i++) {
-    new PipelineStack(app, `Pipeline0${i}`, {
-        stages: i
-    });
+    new PipelineStack(app, `pipeline0${i}`, { stages: i });
 }
 
 const assembly = app.synth();
 
-for (const stack of assembly.stacks) {
+for (const stack of assembly.stacks.filter(stack => stack.originalName.startsWith("pipeline"))) {
     const out = path.join(dir, `pipeline`);
-    if (!fs.existsSync(out)){
+    if (!fs.existsSync(out)) {
         fs.mkdirSync(out);
     }
-
     const document = yaml.safeDump(stack.template);
-    fs.writeFileSync(path.join(out, `${stack.originalName}.template.yaml`), document);
+    fs.writeFileSync(path.join(out, `${stack.originalName.toLowerCase()}.template.yaml`), document);
+};
+
+for (const stack of assembly.stacks.filter(stack => stack.originalName.startsWith("source"))) {
+    const out = path.join(dir, `source`);
+    if (!fs.existsSync(out)) {
+        fs.mkdirSync(out);
+    }
+    const document = yaml.safeDump(stack.template);
+    fs.writeFileSync(path.join(out, `${stack.originalName.toLowerCase()}.template.yaml`), document);
 };
 
 
