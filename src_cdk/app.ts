@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as yaml from "js-yaml";
 
-const dir = "./.dist";
+const dir = "./.aws-sam/build";
 
 if (!fs.existsSync(dir)){
     fs.mkdirSync(dir);

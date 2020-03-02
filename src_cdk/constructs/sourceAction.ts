@@ -75,8 +75,8 @@ export class SourceAction extends cdk.Construct {
                 required: true
             }],
             inputArtifactDetails: {
-                minimumCount: 1,
-                maximumCount: 1
+                minimumCount: 0,
+                maximumCount: 0
             },
             outputArtifactDetails: {
                 minimumCount: 1,

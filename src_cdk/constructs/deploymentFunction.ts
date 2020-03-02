@@ -64,7 +64,8 @@ export class DeploymentFunction extends cdk.Construct {
                             "functionArn": [ this.functionArn ]
                         }],
                         "responsePayload": [{
-                            "account": [ cdk.Fn.ref(id) ],
+                            "action": [ "Deploy" ],
+                            "accountId": [ cdk.Fn.ref(id) ],
                             "stage": [ cdk.Fn.ref(name) ]
                         }]
                     }]
