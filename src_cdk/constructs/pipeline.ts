@@ -5,6 +5,7 @@ import * as iam from "@aws-cdk/aws-iam";
 import { ArtifactBucket } from "./artifactBucket"
 import { ResultFunction } from "./resultFunction";
 import { DeploymentFunction } from "./deploymentFunction";
+import { PolicyDocument } from "@aws-cdk/aws-iam";
 
 interface PipelineProps {
     eventBusName: string // warning: logical ID
@@ -26,8 +27,20 @@ export class Pipeline extends cdk.Construct {
     ) {
         super(construct, id);
 
+        this.deploymentFunction = new DeploymentFunction(this, "DeploymentFunction", { eventBusName, stages });
+        this.resultFunction = new ResultFunction(this, "ResultFunction", { accounts: stages });
+
         this.deploymentRole = new iam.Role(this, "DeploymentRole", {
-            assumedBy: new iam.ArnPrincipal(cdk.Fn.sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:root`))
+            assumedBy: new iam.ArnPrincipal(cdk.Fn.sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:root`)),
+            inlinePolicies: {
+                invokeDeploymentFunction: new iam.PolicyDocument({
+                    statements: [new iam.PolicyStatement({
+                        effect: iam.Effect.ALLOW,
+                        actions: [ "lambda:InvokeFunction" ],
+                        resources: [ this.deploymentFunction.functionArn ]
+                    })]
+                })
+            }
         });
 
         this.manualRole = new iam.Role(this, "ManualRole", {
@@ -56,9 +69,6 @@ export class Pipeline extends cdk.Construct {
         });
 
         const artifacts = new ArtifactBucket(this, "ArtifactBucket", { role, stages });
-
-        this.deploymentFunction = new DeploymentFunction(this, "DeploymentFunction", { eventBusName, role, stages });
-        this.resultFunction = new ResultFunction(this, "ResultFunction", { accounts: stages });
 
         const depStages: cp.CfnPipeline.StageDeclarationProperty[] = 
             stages.map((stage, idx) => ({

@@ -2,34 +2,49 @@ import * as cdk from "@aws-cdk/core";
 import * as lambda from "@aws-cdk/aws-lambda";
 import * as iam from "@aws-cdk/aws-iam";
 import * as events from "@aws-cdk/aws-events";
-import * as destinations from "@aws-cdk/aws-lambda-destinations";
+import * as sam from "@aws-cdk/aws-sam"
 
 interface DeploymentFunctionProps {
     stages: { id: string, name: string }[] // warning: logical IDs
     eventBusName: string // warning logical ID
-    role: iam.IRole
 }
 
 export class DeploymentFunction extends cdk.Construct {
 
-    private fn: lambda.Function;
-    get functionArn() { return this.fn.functionArn };
-    get functionName() { return this.fn.functionName };
+    private fn: sam.CfnFunction;
+    get functionArn() { return cdk.Fn.sub(`\${${this.fn.logicalId}}.Arn`) };
+    get functionName() { return this.fn.ref };
 
     constructor(construct: cdk.Construct, id: string, props: DeploymentFunctionProps) {
         super(construct, id);
 
-        const eb = events.EventBus.fromEventBusArn(this, "EventBus",
-            cdk.Fn.sub(`arn:\${AWS::Partition}:events:\${AWS::Region}:\${AWS::AccountId}:event-bus/\${${props.eventBusName}}`))
+        const ebArn = cdk.Fn.sub(`arn:\${AWS::Partition}:events:\${AWS::Region}:\${AWS::AccountId}:event-bus/\${${props.eventBusName}}`);
 
-        this.fn = new lambda.Function(this, "Resource", {
-            runtime: lambda.Runtime.NODEJS_12_X,
-            handler: "index.handler",
-            code: new lambda.InlineCode("here some code"),
-            onSuccess: new destinations.EventBridgeDestination(eb)
+        this.fn = new sam.CfnFunction(this, "Resource", {
+            runtime: lambda.Runtime.NODEJS_12_X.toString(),
+            codeUri: "./deployment",
+            handler: "index.handler"
         });
 
-        this.fn.grantInvoke(props.role)
+        this.fn.addPropertyOverride("Policies", [
+            "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess",
+            "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+            new iam.PolicyDocument({
+                statements: [
+                    new iam.PolicyStatement({
+                        effect: iam.Effect.ALLOW,
+                        actions: ["events:PutEvents"],
+                        resources: ["*"]
+                    })
+                ]
+            }).toJSON()
+        ]);
+
+        this.fn.addPropertyOverride("EventInvokeConfig", {
+            DestinationConfig: {
+                OnSuccess: { Type: "EventBridge", Destination: ebArn }
+            }
+        });
 
         props.stages.forEach(({ id, name }, idx) => {
             const rule = new events.CfnRule(this, `Rule0${idx}`, {
@@ -46,7 +61,7 @@ export class DeploymentFunction extends cdk.Construct {
                     "detail-type": [ "Lambda Function Invocation Result - Success" ],
                     "detail": [{
                         "requestContext": [{
-                            "functionArn": [ this.fn.functionArn ]
+                            "functionArn": [ this.functionArn ]
                         }],
                         "responsePayload": [{
                             "account": [ cdk.Fn.ref(id) ],
