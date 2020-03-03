@@ -3,65 +3,100 @@ import * as cp from "@aws-cdk/aws-codepipeline";
 import * as sfn from "@aws-cdk/aws-stepfunctions";
 import * as tasks from "@aws-cdk/aws-stepfunctions-tasks";
 import * as lambda from "@aws-cdk/aws-lambda";
-import * as sam from "@aws-cdk/aws-sam";
-
 
 export class SourceAction extends cdk.Construct {
     constructor(construct: cdk.Construct, id: string) {
         super(construct, id);
 
-        const startPipeline = new sfn.Task(this, "StartPipeline", {
-            task: new tasks.InvokeFunction(new lambda.Function(this, "StartPipelineFunction", {
-                handler: "index.handler",
-                code: new lambda.InlineCode("This is my code"),
-                runtime: lambda.Runtime.NODEJS_12_X
-            })),
-            inputPath: "$.CodePipelineArn",
-            resultPath: "$.CodePipelineExecutionId"
-        });
-
-        const executeSourcePush = new sfn.Task(this, "ExecSourcePush", {
-            task: new tasks.InvokeFunction(new lambda.Function(this, "ExecSourcePushFunction", {
-                handler: "index.handler",
-                code: new lambda.InlineCode("This is my code"),
+        const pollForJobs = new sfn.Task(this, "PollForJobs", {
+            task: new tasks.InvokeFunction(new lambda.Function(this, "PollForJobsFunction", {
+                handler: "index.pollForJobsHandler",
+                code: new lambda.InlineCode("something"),
                 runtime: lambda.Runtime.NODEJS_12_X
             }), {
                 payload: {
-                    CodeBuildArn: "",
-                    CodePipelineExecutionId: "$.CodePipelineExecutionId",
+                    CodePipelineName: "$.CodePipelineName"
                 }
             }),
-            inputPath: "Code Build Job Arn",
-            resultPath: "$.CodeBuildExecutionId"
+            resultPath: "$.JobDetails"
         });
 
-        const waitForTerminal = new sfn.Task(this, "WaitForTerminal", {
-            task: new tasks.InvokeFunction(new lambda.Function(this, "WaitForTerminalFunction", {
-                handler: "index.handler",
+        const executePush = new sfn.Task(this, "ExecutePush", {
+            task: new tasks.InvokeFunction(new lambda.Function(this, "ExecutePushFunction", {
+                handler: "index.executePushHandler",
                 code: new lambda.InlineCode("This is my code"),
                 runtime: lambda.Runtime.NODEJS_12_X
             }), {
                 payload: {
-                    CodeBuildExecutionId: "$.CodeBuildExecutionId"
+                    CodeBuildProjectName: "",
+                    S3Location: "$.JobDetails.S3Location",
+                }
+            }),
+            resultPath: "$.JobDetails.CodeBuildExectionId"
+        });
+
+        const getStatus = new sfn.Task(this, "GetStatus", {
+            task: new tasks.InvokeFunction(new lambda.Function(this, "WaitForSuccessFunction", {
+                handler: "index.getStatusHandler",
+                code: new lambda.InlineCode("This is my code"),
+                runtime: lambda.Runtime.NODEJS_12_X
+            }), {
+                payload: {
+                    CodeBuildExecutionId: "$.JobDetails.CodeBuildExecutionId",
+                    JobId: "$.JobDetails.JobId"
+                }
+            }),
+            resultPath: "$.JobDetails.JobStatus"
+        });
+
+        const signalFunction = new lambda.Function(this, "SignalResult", {
+            handler: "index.getStatusHandler",
+            code: new lambda.InlineCode("This is my code"),
+            runtime: lambda.Runtime.NODEJS_12_X
+        })
+
+        const signalSuccess = new sfn.Task(this, "SignalSuccess", {
+            task: new tasks.InvokeFunction(signalFunction)
+        })
+
+        const signalFailure = new sfn.Task(this, "SignalFailure", {
+            task: new tasks.InvokeFunction(signalFunction, {
+                payload: {
+                    "JobStatus": "$.JobDetails.JobStatus",
+
                 }
             })
-        });
+        })
 
         // send success, send failure - functions
+        const retryPolicy = {
+            errors: [], backoffRate: 1.5, interval: cdk.Duration.seconds(5), maxAttempts: 5
+        };
 
-        executeSourcePush.addRetry({
-            errors: [],
-            backoffRate: 1.5,
-            interval: cdk.Duration.seconds(5),
-            maxAttempts: 5
-        });
+        pollForJobs.addRetry(retryPolicy);
+        executePush.addRetry(retryPolicy);
+        getStatus.addRetry(retryPolicy); // get Status
 
-        waitForTerminal.addRetry({
-            errors: [ /* States.TaskFailed */],
-            backoffRate: 1.5,
-            interval: cdk.Duration.seconds(5),
-            maxAttempts: 5
+        // give it a 2 minute timeout
+        const definition = pollForJobs
+            .next(executePush)
+            .next(getStatus)
+            .next(new sfn.Choice(this, "Complete?")
+                .when(sfn.Condition.stringEquals("$.JobDetails.JobStatus", "SUCCEEDED"), signalSuccess)
+                .when(sfn.Condition.or(
+                    sfn.Condition.stringEquals("$.JobDetails.JobStatus", "FAILED"),
+                    sfn.Condition.stringEquals("$.JobDetails.JobStatus", "FAULT"),
+                    sfn.Condition.stringEquals("$.JobDetails.JobStatus", "TIMED_OUT"),
+                    sfn.Condition.stringEquals("$.JobDetails.JobStatus", "STOPPED"),
+                ), signalFailure))
+                
+        new sfn.StateMachine(this, 'StateMachine', {
+            definition,
+            stateMachineType: sfn.StateMachineType.EXPRESS,
+            timeout: cdk.Duration.minutes(5)
         });
+                //     sfn.Condition.stringEquals("$.JobDetails.JobStatus", "SUCCEEDED"), Signal)
+                // .)
 
         const action = new cp.CfnCustomActionType(this, "CustomAction", {
             category: "Source",
